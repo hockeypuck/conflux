@@ -28,7 +28,7 @@ import (
 	gc "gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) { gc.TestingT(t) }
+func TestSettings(t *testing.T) { gc.TestingT(t) }
 
 type SettingsSuite struct{}
 
@@ -162,6 +162,33 @@ reconAddr="8.7.6.5:11370"
 				"bob": Partner{
 					HTTPAddr:  "4.3.2.1:11371",
 					ReconAddr: "8.7.6.5:11370",
+				},
+			},
+		},
+		"",
+	}, {
+		"new-style recon partners dnsresolving",
+		`
+[conflux.recon]
+httpAddr=":11371"
+reconAddr=":11370"
+
+[conflux.recon.partner.alice]
+httpAddr="example.net:11371"
+reconAddr="example.net:11370"
+`,
+		&Settings{
+			PTreeConfig:                 defaultPTreeConfig,
+			Version:                     DefaultVersion,
+			LogName:                     DefaultLogName,
+			HTTPAddr:                    DefaultHTTPAddr,
+			ReconAddr:                   DefaultReconAddr,
+			GossipIntervalSecs:          DefaultGossipIntervalSecs,
+			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+			Partners: map[string]Partner{
+				"alice": Partner{
+					HTTPAddr:  "example.net:11371",
+					ReconAddr: "example.net:11370",
 				},
 			},
 		},

@@ -35,6 +35,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"gopkg.in/errgo.v1"
+	log "gopkg.in/hockeypuck/logrus.v0"
 )
 
 type PartnerMap map[string]Partner
@@ -94,23 +95,31 @@ func newIPMatcher() *ipMatcher {
 }
 
 func (m *ipMatcher) allow(partner Partner) error {
-	var httpAddr *net.TCPAddr
-	if partner.HTTPNet == NetworkDefault || partner.HTTPNet == NetworkTCP {
-		httpAddr, resolveErr := net.ResolveTCPAddr("tcp", partner.HTTPAddr)
-		if resolveErr == nil && httpAddr.IP != nil {
-			err := m.allowCIDR(fmt.Sprintf("%s/32", httpAddr.IP.String()))
-			if err != nil {
-				return errgo.Mask(err)
-			}
+	httpAddrs, resolveErr := resolveHost(partner.HTTPNet.String(), partner.HTTPAddr)
+	if resolveErr == nil && len(httpAddrs) > 0 {
+		for _, ip := range httpAddrs {
+			cidr := ipToMask(ip)
+			m.nets = append(m.nets, &cidr)
 		}
 	}
-	if partner.ReconNet == NetworkDefault || partner.ReconNet == NetworkTCP {
-		addr, resolveErr := net.ResolveTCPAddr("tcp", partner.ReconAddr)
-		if resolveErr == nil && addr.IP != nil && (httpAddr == nil || !addr.IP.Equal(httpAddr.IP)) {
-			return m.allowCIDR(fmt.Sprintf("%s/32", addr.IP.String()))
+	addrs, resolveErr := resolveHost(partner.ReconNet.String(), partner.ReconAddr)
+	if resolveErr == nil && len(addrs) > 0 {
+		for _, ip := range addrs {
+			cidr := ipToMask(ip)
+			m.nets = append(m.nets, &cidr)
 		}
 	}
 	return nil
+}
+
+func ipToMask(ip net.IPAddr) (cidr net.IPNet) {
+	cidr = net.IPNet{IP: ip.IP}
+	mask := 128
+	if ip.IP.To4() != nil {
+		mask = 32
+	}
+	cidr.Mask = net.CIDRMask(mask, mask)
+	return
 }
 
 func (m *ipMatcher) allowCIDR(cidr string) error {
@@ -119,6 +128,7 @@ func (m *ipMatcher) allowCIDR(cidr string) error {
 		return errgo.Mask(err)
 	}
 	m.nets = append(m.nets, ipnet)
+	log.Infoln("Nets:", m.nets)
 	return nil
 }
 
@@ -156,6 +166,8 @@ type netType string
 const (
 	NetworkDefault = netType("")
 	NetworkTCP     = netType("tcp")
+	NetworkTCP4    = netType("tcp4")
+	NetworkTCP6    = netType("tcp6")
 	NetworkUnix    = netType("unix")
 )
 
@@ -169,8 +181,8 @@ func (n netType) String() string {
 
 func (n netType) Resolve(addr string) (net.Addr, error) {
 	switch n {
-	case NetworkDefault, NetworkTCP:
-		return net.ResolveTCPAddr("tcp", addr)
+	case NetworkDefault, NetworkTCP, NetworkTCP4, NetworkTCP6:
+		return net.ResolveTCPAddr(n.String(), addr)
 	case NetworkUnix:
 		return net.ResolveUnixAddr("unix", addr)
 	}

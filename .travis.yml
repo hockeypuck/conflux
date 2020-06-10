@@ -2,15 +2,14 @@
 language: go
 
 go:
-  - '1.6'
-  - '1.7'
   - '1.8'
   - '1.9'
   - '1.10'
   - master
 
-before_script:
-  - go get -t -v ./...
+before_install:
+  - mkdir -p $HOME/gopath/src/gopkg.in/hockeypuck/conflux.v2/
+  - rsync -az ${TRAVIS_BUILD_DIR}/ $HOME/gopath/src/gopkg.in/hockeypuck/conflux.v2/
 
 script:
   - go vet -v ./...
